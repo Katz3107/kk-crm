@@ -22,7 +22,7 @@ function textToHtmlParagraphs(text) {
 }
 
 function buildHtml(text) {
-  return `<div style="font-family: Aptos, Calibri, Arial, sans-serif; font-size: 9pt; color: #404040; line-height: 1.5;">
+  return `<div style="max-width: 600px; font-family: Aptos, Calibri, Arial, sans-serif; font-size: 9pt; color: #404040; line-height: 1.5;">
 ${textToHtmlParagraphs(text)}
 ${SIGNATUR_HTML}
 </div>`;
