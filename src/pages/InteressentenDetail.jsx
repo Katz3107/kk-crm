@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, RotateCcw, ChevronDown, ChevronUp, ExternalLink, Video, Plus, Calendar, Trash2 } from 'lucide-react';
-import { getInteressent, createInteressent, deleteInteressent, updateInteressent, createInteressentenGespraech, updateInteressentenGespraech, deleteInteressentenGespraech } from '../lib/api.js';
+import { getInteressent, createInteressent, deleteInteressent, updateInteressent, createInteressentenGespraech, updateInteressentenGespraech, deleteInteressentenGespraech, getInteressentMails, generateFollowupEntwurf } from '../lib/api.js';
 import { formatDate, formatDateTime } from '../lib/format.js';
 import DraggableGespraechModal from '../components/DraggableGespraechModal.jsx';
 
@@ -24,6 +24,7 @@ const TABS = [
   { key: 'basisdaten', label: 'Basisdaten' },
   { key: 'antworten', label: 'TidyCal-Antworten' },
   { key: 'gespraeche', label: 'Gespraeche' },
+  { key: 'followup', label: 'Follow-Up' },
 ];
 
 function Field({ label, children }) {
@@ -564,6 +565,152 @@ function TabGespraeche({ gespraeche, kontaktId, onGespraechAdded, onGespraechDel
   );
 }
 
+// --- Tab: Follow-Up ---
+function TabFollowUp({ kontakt, kontaktId }) {
+  const [mails, setMails] = useState([]);
+  const [loadingMails, setLoadingMails] = useState(true);
+  const [syncFehler, setSyncFehler] = useState(null);
+  const [anrede, setAnrede] = useState('du');
+  const [datumEG, setDatumEG] = useState(kontakt.eg_am ? kontakt.eg_am.slice(0, 10) : '');
+  const [stichworte, setStichworte] = useState('');
+  const [entwurf, setEntwurf] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [entwurfFehler, setEntwurfFehler] = useState(null);
+
+  const egZusammenfassung = (kontakt.gespraeche || [])
+    .filter((g) => g.protokoll_eigen)
+    .sort((a, b) => new Date(b.datum) - new Date(a.datum))[0]?.protokoll_eigen || '';
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingMails(true);
+    getInteressentMails(kontaktId)
+      .then((res) => {
+        if (cancelled) return;
+        setMails(res.mails || []);
+        setSyncFehler(res.syncFehler || null);
+      })
+      .catch((err) => !cancelled && setSyncFehler(err.message))
+      .finally(() => !cancelled && setLoadingMails(false));
+    return () => { cancelled = true; };
+  }, [kontaktId]);
+
+  const handleGenerate = async () => {
+    if (!stichworte.trim()) return;
+    setGenerating(true);
+    setEntwurfFehler(null);
+    try {
+      const result = await generateFollowupEntwurf(kontaktId, { anrede, datumEG, stichworte });
+      setEntwurf(result);
+    } catch (err) {
+      setEntwurfFehler(err.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Linke Seite: Mail-Verlauf */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-gray-700">Mail-Verlauf</h4>
+        {syncFehler && (
+          <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-lg">
+            Mail-Abruf nicht vollstaendig: {syncFehler}
+          </div>
+        )}
+        {loadingMails ? (
+          <div className="text-sm text-gray-400">Lade Mails...</div>
+        ) : mails.length === 0 ? (
+          <div className="text-sm text-gray-400">Keine Mail-Korrespondenz gefunden.</div>
+        ) : (
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+            {mails.map((m) => (
+              <div
+                key={m.id}
+                className={`p-3 rounded-lg text-sm border ${
+                  m.richtung === 'eingehend' ? 'bg-gray-50 border-gray-200' : 'bg-teal-50/40 border-teal-100'
+                }`}
+              >
+                <div className="flex justify-between text-xs text-gray-400 mb-1">
+                  <span>{m.richtung === 'eingehend' ? 'Von ihr' : 'Von Kirsten'}</span>
+                  <span>{formatDateTime(m.datum)}</span>
+                </div>
+                <div className="font-medium text-gray-700 mb-1">{m.betreff}</div>
+                <div className="text-gray-600 whitespace-pre-wrap">{(m.inhalt || '').slice(0, 400)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Rechte Seite: Entwurf erstellen */}
+      <div className="space-y-4">
+        {egZusammenfassung && (
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-1.5">Zusammenfassung Erstgespraech</h4>
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 whitespace-pre-wrap">
+              {egZusammenfassung}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Anrede">
+            <TextInput value={anrede} onChange={setAnrede} />
+          </Field>
+          <Field label="Datum Erstgespraech">
+            <input
+              type="date"
+              value={datumEG}
+              onChange={(e) => setDatumEG(e.target.value)}
+              className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
+            />
+          </Field>
+        </div>
+
+        <Field label="Stichworte fuer diese Follow-up-Mail">
+          <textarea
+            value={stichworte}
+            onChange={(e) => setStichworte(e.target.value)}
+            rows={4}
+            placeholder="z.B. hat sich noch nicht gemeldet, wollte sich Zeit nehmen, freundlich nachfassen"
+            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
+          />
+        </Field>
+
+        <button
+          onClick={handleGenerate}
+          disabled={generating || !stichworte.trim()}
+          className="px-4 py-2 text-sm bg-teal-primary text-white rounded-lg hover:bg-teal-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {generating ? 'Entwurf wird erstellt...' : 'Entwurf erstellen'}
+        </button>
+
+        {entwurfFehler && (
+          <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{entwurfFehler}</div>
+        )}
+
+        {entwurf && (
+          <div className="border border-teal-200 rounded-lg p-4 bg-teal-50/30 space-y-3">
+            <Field label="Betreff">
+              <TextInput value={entwurf.betreff} onChange={(v) => setEntwurf({ ...entwurf, betreff: v })} />
+            </Field>
+            <Field label="Text (editierbar, dann selbst nach Outlook kopieren)">
+              <textarea
+                value={entwurf.text}
+                onChange={(e) => setEntwurf({ ...entwurf, text: e.target.value })}
+                rows={14}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
+              />
+            </Field>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const emptyInteressent = {
   typ: 'interessent',
   vorname: '', nachname: '', kuerzel: '', email: '', telefon: '', mobilfon: '',
@@ -790,6 +937,9 @@ export default function InteressentenDetail() {
       )}
       {activeTab === 'gespraeche' && !isNew && (
         <TabGespraeche gespraeche={kontakt.gespraeche} kontaktId={id} onGespraechAdded={load} onGespraechDeleted={load} drafts={gespraechDrafts} setDrafts={setGespraechDrafts} onOpenGespraech={(g) => setOpenGespraech(g)} />
+      )}
+      {activeTab === 'followup' && !isNew && (
+        <TabFollowUp kontakt={kontakt} kontaktId={id} />
       )}
 
       {/* Draggable Gespraech-Modal — bleibt offen beim Tab-Wechsel */}

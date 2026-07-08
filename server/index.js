@@ -11,6 +11,8 @@ import { fileURLToPath } from 'url';
 import { execFile } from 'child_process';
 import { mkdirSync, existsSync, unlinkSync, readFileSync, readdirSync } from 'fs';
 import pg from 'pg';
+import { fetchMailsForAddress } from './mail_imap.js';
+import { generateFollowupDraft } from './followup_draft.js';
 
 // TIMESTAMP WITHOUT TIME ZONE (OID 1114) als rohen String zurueckgeben.
 // Sonst interpretiert node-pg die Wanduhr-Zeit in der lokalen TZ des Node-
@@ -1659,6 +1661,82 @@ app.get('/api/interessenten/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /api/interessenten/:id error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/interessenten/:id/mails - Mail-Verlauf mit dieser Interessentin.
+// Synct vorher per IMAP mit dem kontakt@-Postfach (Strato), Fehler beim Sync
+// sind nicht fatal - gespeicherte Mails werden trotzdem zurueckgegeben.
+app.get('/api/interessenten/:id/mails', async (req, res) => {
+  try {
+    const kontaktRes = await pool.query('SELECT email FROM kontakte WHERE id = $1', [req.params.id]);
+    if (kontaktRes.rows.length === 0) return res.status(404).json({ error: 'Interessent nicht gefunden' });
+    const email = kontaktRes.rows[0].email;
+
+    let syncFehler = null;
+    if (email) {
+      try {
+        const gefunden = await fetchMailsForAddress(email);
+        for (const mail of gefunden) {
+          const exists = await pool.query('SELECT id FROM mails WHERE outlook_id = $1', [mail.externalId]);
+          if (exists.rows.length > 0) continue;
+          await pool.query(
+            `INSERT INTO mails (kontakt_id, kuerzel, emailadresse, betreff, inhalt, datum, richtung, outlook_id, zugeordnet)
+             VALUES ($1, (SELECT kuerzel FROM kontakte WHERE id = $1), $2, $3, $4, $5, $6, $7, true)`,
+            [req.params.id, email, mail.betreff, mail.inhalt, mail.datum, mail.richtung, mail.externalId]
+          );
+        }
+      } catch (syncErr) {
+        console.warn(`IMAP-Sync fuer Interessent ${req.params.id} fehlgeschlagen:`, syncErr.message);
+        syncFehler = syncErr.message;
+      }
+    }
+
+    const mailsRes = await pool.query('SELECT * FROM mails WHERE kontakt_id = $1 ORDER BY datum ASC', [req.params.id]);
+    res.json({ mails: mailsRes.rows, syncFehler });
+  } catch (err) {
+    console.error('GET /api/interessenten/:id/mails error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/interessenten/:id/followup-entwurf - Claude generiert einen
+// editierbaren Follow-up-Mail-Entwurf aus Stichworten + Kontext.
+app.post('/api/interessenten/:id/followup-entwurf', async (req, res) => {
+  try {
+    const { anrede, datumEG, stichworte } = req.body;
+    if (!stichworte || !stichworte.trim()) {
+      return res.status(400).json({ error: 'Stichworte duerfen nicht leer sein' });
+    }
+
+    const kontaktRes = await pool.query('SELECT * FROM kontakte WHERE id = $1', [req.params.id]);
+    if (kontaktRes.rows.length === 0) return res.status(404).json({ error: 'Interessent nicht gefunden' });
+    const kontakt = kontaktRes.rows[0];
+
+    const gespraechRes = await pool.query(
+      'SELECT protokoll_eigen FROM interessenten_gespraeche WHERE kontakt_id = $1 ORDER BY datum DESC LIMIT 1',
+      [req.params.id]
+    );
+    const egZusammenfassung = gespraechRes.rows[0]?.protokoll_eigen || '';
+
+    const mailsRes = await pool.query('SELECT * FROM mails WHERE kontakt_id = $1 ORDER BY datum DESC LIMIT 6', [req.params.id]);
+
+    const entwurf = await generateFollowupDraft({
+      vorname: kontakt.vorname || kontakt.name,
+      anrede: anrede || 'du',
+      datumEG: datumEG || kontakt.eg_am,
+      stichworte,
+      egZusammenfassung,
+      bisherigeMails: mailsRes.rows.reverse(),
+    });
+
+    res.json(entwurf);
+  } catch (err) {
+    console.error('POST /api/interessenten/:id/followup-entwurf error:', err);
+    if (err.code === 'NO_API_KEY') {
+      return res.status(503).json({ error: 'ANTHROPIC_API_KEY ist auf dem Server nicht konfiguriert.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

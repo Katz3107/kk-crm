@@ -138,6 +138,12 @@ export const updateInteressentenGespraech = (id, data) =>
 export const deleteInteressentenGespraech = (id) =>
   request(`/interessenten-gespraeche/${id}`, { method: 'DELETE' });
 
+// Follow-Up
+export const getInteressentMails = (kontaktId) =>
+  request(`/interessenten/${kontaktId}/mails`);
+export const generateFollowupEntwurf = (kontaktId, data) =>
+  request(`/interessenten/${kontaktId}/followup-entwurf`, { method: 'POST', body: JSON.stringify(data) });
+
 // Zahlungsabgleich
 export const getZahlungsabgleichVorschau = () => request(`/zahlungsabgleich/vorschau`);
 export const zahlungsabgleichAusfuehren = (matches) =>
