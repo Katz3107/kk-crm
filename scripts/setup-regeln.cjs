@@ -1,5 +1,11 @@
+require('dotenv').config({ path: '/etc/kk-apps.env' });
 const { Pool } = require('pg');
-const p = new Pool({ connectionString: 'postgresql://katzenmayer:kk-crm-2026!@localhost/kk_unternehmens_db' });
+const p = new Pool({
+  host: 'localhost',
+  database: 'kk_unternehmens_db',
+  user: 'katzenmayer',
+  password: process.env.DB_PASSWORD,
+});
 
 const regeln = [
   // Prio 10: Spezifische Kombis (Name+Zweck oder Zweck+Betrag)
