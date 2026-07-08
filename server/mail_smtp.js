@@ -5,7 +5,7 @@ const SMTP_PORT = 587;
 const SMTP_USER = 'kontakt@katzenmayer-coaching.com';
 
 const SIGNATUR_HTML = `
-<p>Birkenweg 4<br>
+<p style="margin: 18px 0 0 0;">Birkenweg 4<br>
 61273 Wehrheim<br>
 +49 6081 586770<br>
 +49 171 3596354<br>
@@ -13,10 +13,11 @@ const SIGNATUR_HTML = `
 <a href="https://katzenmayer-coaching.com/impressum/" style="color:#0A5F6A; text-decoration:none;">Impressum</a></p>`;
 
 // Wandelt einfachen Text (mit Leerzeilen als Absatztrenner) in HTML-Absaetze um.
+// Enger Absatzabstand statt Browser-Standard (der wirkt sonst zu weit auseinandergezogen).
 function textToHtmlParagraphs(text) {
   return text
     .split(/\n\s*\n/)
-    .map((absatz) => `<p>${absatz.replace(/\n/g, '<br>')}</p>`)
+    .map((absatz) => `<p style="margin: 0 0 10px 0;">${absatz.replace(/\n/g, '<br>')}</p>`)
     .join('\n');
 }
 
