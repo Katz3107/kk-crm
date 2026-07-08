@@ -1,0 +1,14 @@
+node_modules/
+venv/
+scripts/venv/
+dist/
+tmp/
+*.log
+.env
+*.bak-*
+
+# Echte Kunden-/Bankdaten - niemals versionieren
+hubspot-crm-exports-alle-kontakte-katz-*.csv
+hubspot_meetings_export.json
+hubspot_notes_export.json
+scripts/Umsaetze_*.csv
