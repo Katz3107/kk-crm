@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, RotateCcw, ChevronDown, ChevronUp, ExternalLink, Video, Plus, Calendar, Trash2 } from 'lucide-react';
-import { getInteressent, createInteressent, deleteInteressent, updateInteressent, createInteressentenGespraech, updateInteressentenGespraech, deleteInteressentenGespraech, getInteressentMails, generateFollowupEntwurf } from '../lib/api.js';
+import { getInteressent, createInteressent, deleteInteressent, updateInteressent, createInteressentenGespraech, updateInteressentenGespraech, deleteInteressentenGespraech, getInteressentMails, generateFollowupEntwurf, sendFollowupMail } from '../lib/api.js';
 import { formatDate, formatDateTime } from '../lib/format.js';
 import DraggableGespraechModal from '../components/DraggableGespraechModal.jsx';
 
@@ -576,6 +576,9 @@ function TabFollowUp({ kontakt, kontaktId }) {
   const [entwurf, setEntwurf] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [entwurfFehler, setEntwurfFehler] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [sendFehler, setSendFehler] = useState(null);
+  const [gesendet, setGesendet] = useState(false);
 
   const egZusammenfassung = (kontakt.gespraeche || [])
     .filter((g) => g.protokoll_eigen)
@@ -599,6 +602,8 @@ function TabFollowUp({ kontakt, kontaktId }) {
     if (!stichworte.trim()) return;
     setGenerating(true);
     setEntwurfFehler(null);
+    setGesendet(false);
+    setSendFehler(null);
     try {
       const result = await generateFollowupEntwurf(kontaktId, { anrede, datumEG, stichworte });
       setEntwurf(result);
@@ -606,6 +611,22 @@ function TabFollowUp({ kontakt, kontaktId }) {
       setEntwurfFehler(err.message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!entwurf) return;
+    const empfaenger = kontakt.email || '(keine E-Mail hinterlegt)';
+    if (!window.confirm(`Mail wirklich an ${empfaenger} senden?`)) return;
+    setSending(true);
+    setSendFehler(null);
+    try {
+      await sendFollowupMail(kontaktId, { betreff: entwurf.betreff, text: entwurf.text });
+      setGesendet(true);
+    } catch (err) {
+      setSendFehler(err.message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -696,14 +717,28 @@ function TabFollowUp({ kontakt, kontaktId }) {
             <Field label="Betreff">
               <TextInput value={entwurf.betreff} onChange={(v) => setEntwurf({ ...entwurf, betreff: v })} />
             </Field>
-            <Field label="Text (editierbar, dann selbst nach Outlook kopieren)">
+            <Field label="Text (editierbar)">
               <textarea
                 value={entwurf.text}
-                onChange={(e) => setEntwurf({ ...entwurf, text: e.target.value })}
+                onChange={(e) => { setEntwurf({ ...entwurf, text: e.target.value }); setGesendet(false); }}
                 rows={14}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
               />
             </Field>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSend}
+                disabled={sending || gesendet || !kontakt.email}
+                className="px-4 py-2 text-sm bg-teal-primary text-white rounded-lg hover:bg-teal-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sending ? 'Wird gesendet...' : gesendet ? 'Gesendet' : `An ${kontakt.email || 'keine E-Mail'} senden`}
+              </button>
+              {gesendet && <span className="text-sm text-teal-dark">Mail wurde verschickt.</span>}
+            </div>
+            {sendFehler && (
+              <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{sendFehler}</div>
+            )}
           </div>
         )}
       </div>

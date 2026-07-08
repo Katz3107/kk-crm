@@ -13,6 +13,7 @@ import { mkdirSync, existsSync, unlinkSync, readFileSync, readdirSync } from 'fs
 import pg from 'pg';
 import { fetchMailsForAddress } from './mail_imap.js';
 import { generateFollowupDraft } from './followup_draft.js';
+import { sendMail } from './mail_smtp.js';
 
 // TIMESTAMP WITHOUT TIME ZONE (OID 1114) als rohen String zurueckgeben.
 // Sonst interpretiert node-pg die Wanduhr-Zeit in der lokalen TZ des Node-
@@ -1737,6 +1738,33 @@ app.post('/api/interessenten/:id/followup-entwurf', async (req, res) => {
     if (err.code === 'NO_API_KEY') {
       return res.status(503).json({ error: 'ANTHROPIC_API_KEY ist auf dem Server nicht konfiguriert.' });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/interessenten/:id/followup-senden - versendet den (ggf. editierten)
+// Entwurf per SMTP an die Interessentin und speichert ihn als gesendete Mail.
+app.post('/api/interessenten/:id/followup-senden', async (req, res) => {
+  try {
+    const { betreff, text } = req.body;
+    if (!betreff || !text) return res.status(400).json({ error: 'Betreff und Text duerfen nicht leer sein' });
+
+    const kontaktRes = await pool.query('SELECT email, kuerzel FROM kontakte WHERE id = $1', [req.params.id]);
+    if (kontaktRes.rows.length === 0) return res.status(404).json({ error: 'Interessent nicht gefunden' });
+    const { email, kuerzel } = kontaktRes.rows[0];
+    if (!email) return res.status(400).json({ error: 'Kein E-Mail-Adresse fuer diesen Kontakt hinterlegt' });
+
+    await sendMail({ to: email, subject: betreff, text });
+
+    await pool.query(
+      `INSERT INTO mails (kontakt_id, kuerzel, emailadresse, betreff, inhalt, datum, richtung, zugeordnet)
+       VALUES ($1, $2, $3, $4, $5, NOW(), 'ausgehend', true)`,
+      [req.params.id, kuerzel, email, betreff, text]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /api/interessenten/:id/followup-senden error:', err);
     res.status(500).json({ error: err.message });
   }
 });
