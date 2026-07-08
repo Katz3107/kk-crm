@@ -17,7 +17,7 @@ const SIGNATUR_HTML = `
 function textToHtmlParagraphs(text) {
   return text
     .split(/\n\s*\n/)
-    .map((absatz) => `<p style="margin: 0 0 10px 0;">${absatz.replace(/\n/g, '<br>')}</p>`)
+    .map((absatz) => `<p style="margin: 0 0 4px 0;">${absatz.replace(/\n/g, '<br>')}</p>`)
     .join('\n');
 }
 
