@@ -23,7 +23,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-[#f8fffe]">
       {isStaging() && (
-        <div className="bg-fuchsia-600 text-white text-center text-sm font-semibold py-1.5 sticky top-0 z-50">
+        <div className="bg-[#bf1364] text-white text-center text-sm font-semibold py-1.5 sticky top-0 z-50">
           TEST-UMGEBUNG · nicht die echten Daten
         </div>
       )}
