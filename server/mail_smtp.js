@@ -5,7 +5,7 @@ const SMTP_PORT = 587;
 const SMTP_USER = 'kontakt@katzenmayer-coaching.com';
 
 const SIGNATUR_HTML = `
-<p style="margin: 18px 0 0 0;">Birkenweg 4<br>
+<p style="margin: 8px 0 0 0;">Birkenweg 4<br>
 61273 Wehrheim<br>
 +49 6081 586770<br>
 +49 171 3596354<br>
@@ -17,7 +17,7 @@ const SIGNATUR_HTML = `
 function textToHtmlParagraphs(text) {
   return text
     .split(/\n\s*\n/)
-    .map((absatz) => `<p style="margin: 0 0 4px 0;">${absatz.replace(/\n/g, '<br>')}</p>`)
+    .map((absatz) => `<p style="margin: 0 0 8px 0;">${absatz.replace(/\n/g, '<br>')}</p>`)
     .join('\n');
 }
 
