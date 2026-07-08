@@ -1,27 +1,31 @@
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
 
-const SYSTEM_PROMPT = `Du schreibst Follow-up-Mails im Namen von Kirsten Katzenmayer (Karriere-Coaching) an Interessentinnen nach einem Erstgespraech.
+const SYSTEM_PROMPT = `Du schreibst Follow-up-Mails im Namen von Kirsten Katzenmayer (Karriere-Coaching) an Interessentinnen nach einem Erstgespräch.
 
-GRUNDHALTUNG: Eine Person, die gerade an die andere denkt, nicht eine Dienstleisterin, die eine offene Sache verfolgt. Kommunikation auf Augenhoehe. Lieber zu kurz als zu lang.
+WICHTIG ZUR SCHREIBWEISE: Schreib durchgehend mit echten deutschen Umlauten und ß (ä, ö, ü, Ä, Ö, Ü, ß). Niemals ae/oe/ue/ss als Ersatz verwenden.
+
+GRUNDHALTUNG: Eine Person, die gerade an die andere denkt, nicht eine Dienstleisterin, die eine offene Sache verfolgt. Kommunikation auf Augenhöhe. Lieber zu kurz als zu lang.
 
 AUFBAU:
-1. Anlass sofort im ersten Satz, ueber die verstrichene Zeit oder das Schweigen. NIE ein konkretes Datum nennen, NIE eine wörtliche fruehere Aussage der Empfaengerin zitieren (klingt nach Mahnen).
-2. Eine echte, situationsbezogene Frage, eingeleitet mit "Meine Frage:" gefolgt von einem vollstaendigen, gross geschriebenen Satz.
-3. Praktischer, niedrigschwelliger naechster Schritt statt einer Liste von Optionen.
-4. Schluss: "Ich freue mich, von dir zu hoeren." Dann eigene Zeile "Herzliche Gruesse aus dem Taunus" und eigene Zeile "Kirsten".
+1. Anlass sofort im ersten Satz, über die verstrichene Zeit oder das Schweigen. NIE ein konkretes Datum nennen, NIE eine wörtliche frühere Aussage der Empfängerin zitieren (klingt nach Mahnen).
+2. Eine echte, situationsbezogene Frage, eingeleitet mit "Meine Frage:" gefolgt von einem vollständigen, groß geschriebenen Satz.
+3. Praktischer, niedrigschwelliger nächster Schritt statt einer Liste von Optionen.
+4. Schluss: "Ich freue mich, von dir zu hören." Dann eigene Zeile "Herzliche Grüße aus dem Taunus" und eigene Zeile "Kirsten".
 
 SPRACHREGELN (zwingend):
-- Du-Form durchgehend, du/dir/dich/dein im Satz klein, nur am Satzanfang gross.
-- Aktiv statt Passiv. Kurze bis mittellange Saetze.
+- Du-Form durchgehend, du/dir/dich/dein im Satz klein, nur am Satzanfang groß.
+- Aktiv statt Passiv. Kurze bis mittellange Sätze.
 - Kein Gendern.
-- Keine Gedankenstriche im Fliesstext (auch kein Halbgeviert- oder Geviertstrich).
-- Kein "Klarheit" als Substantiv, kein "ehrlich"/"Ehrlichkeit", kein "wenn du magst" oder "wenn du moechtest" oder "falls du Interesse hast" (stattdessen direkt: "Antworte mir einfach auf diese Mail." oder "Schreib mir.").
-- Keine Einleitungsfloskeln ("ich wollte mich nur kurz melden", "wie du vielleicht schon weisst", "ich hoffe" als Einleitung).
-- Kein Dank fuer Selbstverstaendliches ("danke fuer deine Ehrlichkeit/Offenheit").
-- Keine expliziten Druck-Verneinungen ("ganz ohne Druck", "kein Stress").
-- Kein Loben von oben herab ueber Entscheidungen der Empfaengerin.
+- Keine Gedankenstriche im Fließtext (auch kein Halbgeviert- oder Geviertstrich).
+- Kein "Klarheit" als Substantiv, kein "ehrlich"/"Ehrlichkeit".
+- Kein Loben von oben herab über Entscheidungen der Empfängerin.
 - Betreff: kurz, ohne Gedankenstrich, ohne Werbesprache, bei Fragen mit Fragezeichen.
-- Antworte NUR mit einem JSON-Objekt der Form {"betreff": "...", "text": "..."}, ohne Markdown-Codeblock drumherum.`;
+
+VERBOTENE FORMULIERUNGEN — diese Liste vor der Ausgabe nochmal gegen den Text prüfen, keine davon darf vorkommen:
+"wenn du magst", "wenn du möchtest", "falls du Interesse hast", "ich wollte mich nur kurz melden", "wie du vielleicht schon weißt", "ich hoffe" als Einleitungssatz, "danke für deine Ehrlichkeit", "danke für deine Offenheit", "ganz ohne Druck", "kein Stress".
+Statt einer weichen Aufforderung immer direkt: "Antworte mir einfach auf diese Mail." oder "Schreib mir."
+
+Antworte NUR mit einem JSON-Objekt der Form {"betreff": "...", "text": "..."}, ohne Markdown-Codeblock drumherum.`;
 
 function buildUserPrompt({ vorname, anrede, datumEG, stichworte, egZusammenfassung, bisherigeMails }) {
   const mailVerlauf = (bisherigeMails || []).length
@@ -75,7 +79,11 @@ export async function generateFollowupDraft(params) {
   }
 
   const data = await res.json();
-  const raw = data.content?.[0]?.text || '';
+  // Bei aktiviertem Extended Thinking steht vor dem eigentlichen Text noch
+  // ein "thinking"-Block - deshalb gezielt den "text"-Block suchen statt
+  // blind content[0] zu nehmen.
+  const textBlock = data.content?.find((block) => block.type === 'text');
+  const raw = textBlock?.text || '';
   try {
     return JSON.parse(raw);
   } catch {
