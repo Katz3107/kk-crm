@@ -2,6 +2,14 @@ import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Home, Users, UserSearch, Wallet } from 'lucide-react';
 
+// Erkennt die Staging-Umgebung zur Laufzeit an Hostname/Port, statt an einer
+// separat gepflegten Build-Konstante - so bleibt derselbe Code in Test und
+// Produktion identisch, nur die tatsaechliche URL entscheidet.
+function isStaging() {
+  if (typeof window === 'undefined') return false;
+  return window.location.hostname === 'crm-test.katzenmayer-coaching.com' || window.location.port === '3105';
+}
+
 export default function Layout() {
   const location = useLocation();
   const path = location.pathname;
@@ -14,6 +22,11 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-[#f8fffe]">
+      {isStaging() && (
+        <div className="bg-fuchsia-600 text-white text-center text-sm font-semibold py-1.5 sticky top-0 z-50">
+          TEST-UMGEBUNG · nicht die echten Daten
+        </div>
+      )}
       {/* Header */}
       <header className="bg-teal-primary text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
