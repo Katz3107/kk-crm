@@ -579,7 +579,6 @@ function TabFollowUp({ kontakt, kontaktId }) {
   const [sending, setSending] = useState(false);
   const [sendFehler, setSendFehler] = useState(null);
   const [gesendet, setGesendet] = useState(false);
-  const [frage, setFrage] = useState('');
   const [meinung, setMeinung] = useState('');
   const [askingMeinung, setAskingMeinung] = useState(false);
   const [meinungFehler, setMeinungFehler] = useState(null);
@@ -622,11 +621,11 @@ function TabFollowUp({ kontakt, kontaktId }) {
   };
 
   const handleAskMeinung = async () => {
-    if (!frage.trim()) return;
+    if (!stichworte.trim()) return;
     setAskingMeinung(true);
     setMeinungFehler(null);
     try {
-      const result = await fragFollowupMeinung(kontaktId, frage);
+      const result = await fragFollowupMeinung(kontaktId, stichworte);
       setMeinung(result.antwort || '');
     } catch (err) {
       setMeinungFehler(err.message);
@@ -697,35 +696,6 @@ function TabFollowUp({ kontakt, kontaktId }) {
           </div>
         )}
 
-        {/* Um Einschaetzung fragen - separat vom Mail-Entwurf, fuer offene Fragen
-            wie "sollte ich nochmal schreiben?" statt fertiger Mail-Stichworte */}
-        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
-          <Field label="Claude um Einschätzung fragen (statt Mail-Entwurf)">
-            <textarea
-              value={frage}
-              onChange={(e) => setFrage(e.target.value)}
-              rows={2}
-              placeholder="z.B. Sie antwortet nicht mehr, soll ich nochmal schreiben?"
-              className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
-            />
-          </Field>
-          <button
-            onClick={handleAskMeinung}
-            disabled={askingMeinung || !frage.trim()}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {askingMeinung ? 'Frage läuft...' : 'Einschätzung einholen'}
-          </button>
-          {meinungFehler && (
-            <div className="p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{meinungFehler}</div>
-          )}
-          {meinung && (
-            <div className="p-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
-              {meinung}
-            </div>
-          )}
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <Field label="Anrede">
             <TextInput value={anrede} onChange={setAnrede} />
@@ -740,23 +710,45 @@ function TabFollowUp({ kontakt, kontaktId }) {
           </Field>
         </div>
 
-        <Field label="Stichworte fuer diese Follow-up-Mail">
+        {/* Ein gemeinsames Feld fuer beides: Stichworte fuer einen Mail-Entwurf
+            ODER eine Frage fuer eine Einschaetzung. Beide Buttons nutzen denselben
+            Text, so kann man z.B. erst die Einschaetzung einholen, die Antwort
+            lesen, den Text ergaenzen und dann direkt daraus einen Entwurf erstellen. */}
+        <Field label="Stichworte fuer die Mail oder Frage an Claude">
           <textarea
             value={stichworte}
             onChange={(e) => setStichworte(e.target.value)}
             rows={4}
-            placeholder="z.B. hat sich noch nicht gemeldet, wollte sich Zeit nehmen, freundlich nachfassen"
+            placeholder="z.B. hat sich noch nicht gemeldet, freundlich nachfassen — oder eine Frage wie: sie antwortet nicht, soll ich nochmal schreiben?"
             className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
           />
         </Field>
 
-        <button
-          onClick={handleGenerate}
-          disabled={generating || !stichworte.trim()}
-          className="px-4 py-2 text-sm bg-teal-primary text-white rounded-lg hover:bg-teal-hover disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {generating ? 'Entwurf wird erstellt...' : 'Entwurf erstellen'}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleAskMeinung}
+            disabled={askingMeinung || !stichworte.trim()}
+            className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {askingMeinung ? 'Frage läuft...' : 'Einschätzung einholen'}
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={generating || !stichworte.trim()}
+            className="px-4 py-2 text-sm bg-teal-primary text-white rounded-lg hover:bg-teal-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generating ? 'Entwurf wird erstellt...' : 'Entwurf erstellen'}
+          </button>
+        </div>
+
+        {meinungFehler && (
+          <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{meinungFehler}</div>
+        )}
+        {meinung && (
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
+            {meinung}
+          </div>
+        )}
 
         {entwurfFehler && (
           <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{entwurfFehler}</div>
