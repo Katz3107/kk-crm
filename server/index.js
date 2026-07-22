@@ -291,7 +291,7 @@ app.get('/api/kontakte/:id', async (req, res) => {
 app.post('/api/kontakte', async (req, res) => {
   try {
     const fields = [
-      'typ', 'kuerzel', 'vorname', 'nachname', 'email', 'telefon', 'mobilfon',
+      'typ', 'kuerzel', 'vorname', 'nachname', 'email', 'email_2', 'telefon', 'mobilfon',
       'quelle', 'strasse', 'ort', 'land', 'gespraechspartner', 'paket',
       'nebenabreden', 'onboardingdatum', 'geburtsdatum', 'lebenszahl',
       'status', 'hinweise', 'anmerkungen', 'zusatzinfos', 'aktueller_stand',
@@ -649,7 +649,8 @@ app.post('/api/kontakte/:id/rechnungen', async (req, res) => {
   try {
     const { produkt_kuerzel, bezeichnung, beschreibung, einleitungstext, danke_text,
             danke_text_teilrechnung,
-            brutto_gesamt, anzahl_raten, faellig_tage, closer_name } = req.body;
+            brutto_gesamt, anzahl_raten, faellig_tage, closer_name,
+            abweichende_rechnungsadresse } = req.body;
     const kontaktId = req.params.id;
 
     // Kundendaten holen
@@ -715,15 +716,16 @@ app.post('/api/kontakte/:id/rechnungen', async (req, res) => {
         `INSERT INTO rechnungen (kontakt_id, kuerzel, rg_nr, produkt_kuerzel, betrag,
          brutto_gesamt, netto, mwst, anzahl_raten, betrag_pro_rate, rate_nr, raten_gesamt,
          gestellt_am, faellig_am, closer_name, pdf_pfad, email,
-         bezeichnung, beschreibung, einleitungstext, danke_text)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+         bezeichnung, beschreibung, einleitungstext, danke_text, abweichende_rechnungsadresse)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
          RETURNING *`,
         [kontaktId, kuerzel, rgNr, produkt_kuerzel, rateBetrag,
          gesamt, netto, mwst, anzahl_raten, folgeRate || gesamt, i, anzahl_raten,
          rechnungsDatum.toISOString().slice(0, 10),
          faelligDatum.toISOString().slice(0, 10),
          closer_name || null, pdfPfad, kontakt.email || '',
-         bezeichnung || null, beschreibung || null, einleitungstext || null, rateDankeText]
+         bezeichnung || null, beschreibung || null, einleitungstext || null, rateDankeText,
+         abweichende_rechnungsadresse || null]
       );
 
       // Wichtig: insertRes.rows[0] hat die korrekten per-Rate Werte
@@ -743,7 +745,9 @@ app.post('/api/kontakte/:id/rechnungen', async (req, res) => {
 
     // Nach erfolgreichem COMMIT: pro Rate eine Aufgabe in KK-ToDo anlegen.
     // Schlaegt das fehl, ist die Rechnung trotzdem korrekt — Todos sind nur Reminder.
-    const kundenName = `${kontakt.vorname || ''} ${kontakt.nachname || ''}`.trim();
+    // Fuer ToDo-Titel: NUR Kuerzel verwenden (Kirsten-Regel: keine Langnamen
+    // ausserhalb des Kundenprofils). Fallback: Nachname, wenn kein Kuerzel.
+    const kundenLabel = kontakt.kuerzel || kontakt.nachname || '(unbekannt)';
     for (const r of erstellteRechnungen) {
       const rateInfo = r.raten_gesamt > 1 ? ` (Rate ${r.rate_nr}/${r.raten_gesamt})` : '';
       const betragStr = `${parseFloat(r.betrag).toFixed(2).replace('.', ',')} €`;
@@ -752,7 +756,7 @@ app.post('/api/kontakte/:id/rechnungen', async (req, res) => {
       // Beide Datums-Felder bekommen den Versand-Tag (gestellt_am).
       // Die Rechnungs-Faelligkeit (faellig_am) steht in der Beschreibung.
       const todoId = await kkTodoCreate({
-        title: `Rechnung ${r.rg_nr} an ${kundenName} versenden`,
+        title: `Rechnung ${r.rg_nr} an ${kundenLabel} versenden`,
         description: `${r.produkt_kuerzel}${rateInfo} — ${betragStr}\nRechnungs-Faelligkeit: ${fallTag}`,
         scheduledDate: versandTag,
         dueDate: versandTag,
@@ -779,7 +783,7 @@ app.put('/api/rechnungen/:id', async (req, res) => {
   try {
     const editable = ['erhalten_am', 'danke_text', 'einleitungstext',
                       'bezeichnung', 'beschreibung', 'gestellt_am', 'faellig_am',
-                      'manuell_versendet_am',
+                      'manuell_versendet_am', 'abweichende_rechnungsadresse',
                       'storniert_am', 'storno_grund', 'storno_referenz_id'];
     const setParts = [];
     const values = [];
@@ -1569,7 +1573,7 @@ app.get('/api/interessenten/faellige-followups', async (req, res) => {
 app.post('/api/interessenten', async (req, res) => {
   try {
     const fields = [
-      'vorname', 'nachname', 'kuerzel', 'email', 'telefon', 'mobilfon',
+      'vorname', 'nachname', 'kuerzel', 'email', 'email_2', 'telefon', 'mobilfon',
       'stand_interessent', 'quelle', 'hinweise', 'anmerkungen', 'notizen',
       'strasse', 'ort', 'land', 'datum_erstkontakt', 'datum_naechste_aktion',
       'paket'
@@ -1612,7 +1616,13 @@ app.post('/api/interessenten', async (req, res) => {
 //   datum gesetzt:  Todo anlegen oder bestehendes auf neues Datum updaten
 //   datum geloescht: bestehendes Todo auf erledigt setzen
 async function syncFollowupTodo(kontakt, neuesDatum) {
-  const name = `${kontakt.vorname || ''} ${kontakt.nachname || ''}`.trim() || `Kontakt ${kontakt.id}`;
+  // Fuer ToDo-Titel: Kuerzel bevorzugen (Kirsten-Regel: keine Langnamen ausserhalb
+  // Kundenprofil). Fallback: Nachname, dann Kontakt-ID. Vollname nur wenn nichts
+  // anderes verfuegbar (typisch bei Interessenten ganz frueh im Prozess).
+  const name = kontakt.kuerzel
+    || kontakt.nachname
+    || `${kontakt.vorname || ''} ${kontakt.nachname || ''}`.trim()
+    || `Kontakt ${kontakt.id}`;
   const stand = kontakt.stand_interessent ? ` [${kontakt.stand_interessent}]` : '';
   const datumKurz = toIsoDate(neuesDatum);
 
@@ -1773,7 +1783,7 @@ app.post('/api/interessenten/:id/followup-senden', async (req, res) => {
 app.put('/api/interessenten/:id', async (req, res) => {
   try {
     const fields = [
-      'vorname', 'nachname', 'kuerzel', 'email', 'telefon', 'mobilfon',
+      'vorname', 'nachname', 'kuerzel', 'email', 'email_2', 'telefon', 'mobilfon',
       'stand_interessent', 'quelle', 'hinweise', 'anmerkungen', 'notizen',
       'strasse', 'ort', 'land', 'datum_erstkontakt', 'datum_naechste_aktion',
       'paket'

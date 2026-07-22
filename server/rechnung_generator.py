@@ -14,15 +14,17 @@ from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader, simpleSplit
 
-BLUE = HexColor('#325f7b')
-DARK = HexColor('#333333')
-GREY = HexColor('#666666')
-LIGHT_GREY = HexColor('#CCCCCC')
+# Teal-Design (loest das alte Blau-Design ab)
+TEAL_HEAD = HexColor('#163A3F')   # gedaempftes Teal — Titel, Header, Footer-Linie, Positionsheader
+TEAL_ACCENT = HexColor('#0A5F6A') # dunkles Teal — QR-Labels, Akzente
+DARK = HexColor('#33393A')        # Fliesstext-Farbe (offizielles Fliesstext-Teal)
+GREY = HexColor('#666666')        # Meta-Text (Rg-Nr, Datum, Absenderzeile)
+LIGHT_GREY = HexColor('#CCCCCC')  # Trennlinien
 WHITE = HexColor('#FFFFFF')
 
 # Logo-Pfad relativ zum Script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGO_PFAD = os.path.join(SCRIPT_DIR, '..', 'Neues Logo pixelfrei petrol.png')
+LOGO_PFAD = os.path.join(SCRIPT_DIR, '..', 'logo-teal.png')
 
 FIRMA = {
     'name': 'Katzenmayer Coaching & Training',
@@ -78,6 +80,11 @@ def erstelle_rechnung_pdf(params):
     kunde_strasse = params.get('kunde_strasse', '')
     kunde_plz_ort = params.get('kunde_plz_ort', '')
     kunde_land = params.get('kunde_land', '')
+    # Abweichende Rechnungsadresse (z.B. wenn Arbeitgeber/Traeger zahlt statt Coachee).
+    # Mehrzeiliger Text — jede Zeile eine Zeile im Empfaengerblock. Der Coachee-Bezug
+    # steht in der Positionstabellen-Beschreibung (dort tippt Kirsten "Teilnehmerin:
+    # [Name]" rein), also keine separate Betreff-Zeile noetig.
+    abweichende_rechnungsadresse = (params.get('abweichende_rechnungsadresse') or '').strip()
     titel = params.get('titel', 'Rechnung')
     einleitungstext = params.get('einleitungstext',
         'F\u00fcr die Durchf\u00fchrung eines Coachings zur beruflichen Weiterentwicklung '
@@ -89,8 +96,6 @@ def erstelle_rechnung_pdf(params):
     einheit = params.get('einheit', 'Gesamt')
     raten_info = params.get('raten_info', None)
     danke_text = params.get('danke_text', 'Vielen Dank f\u00fcr die gute Zusammenarbeit.')
-    # Wenn bereits bezahlt: "Faellig innerhalb..."-Zeile ausblenden
-    bereits_bezahlt = bool(params.get('bereits_bezahlt', False))
 
     w, h = A4
     c = canvas.Canvas(ausgabe_pfad, pagesize=A4)
@@ -115,17 +120,25 @@ def erstelle_rechnung_pdf(params):
     c.setFillColor(GREY)
     c.drawString(left, y, f"{FIRMA['name']}, {FIRMA['strasse']}, {FIRMA['plz_ort']}")
 
-    # Empfaenger
+    # Empfaenger — entweder abweichende Rechnungsadresse (Arbeitgeber/Bistum/...)
+    # oder normale Kunden-Adresse.
     y -= 5 * mm
     c.setFont("Helvetica", 10)
     c.setFillColor(DARK)
-    for line in [kunde_name, kunde_strasse, kunde_plz_ort]:
-        if line:
-            c.drawString(left, y, line)
+    if abweichende_rechnungsadresse:
+        for line in abweichende_rechnungsadresse.split('\n'):
+            line = line.strip()
+            if line:
+                c.drawString(left, y, line)
+                y -= 4.5 * mm
+    else:
+        for line in [kunde_name, kunde_strasse, kunde_plz_ort]:
+            if line:
+                c.drawString(left, y, line)
+                y -= 4.5 * mm
+        if kunde_land and kunde_land.upper() not in ('DE', 'DEUTSCHLAND', ''):
+            c.drawString(left, y, kunde_land)
             y -= 4.5 * mm
-    if kunde_land and kunde_land.upper() not in ('DE', 'DEUTSCHLAND', ''):
-        c.drawString(left, y, kunde_land)
-        y -= 4.5 * mm
 
     # Rechnungsnr + Datum rechts
     info_y = top - 37 * mm
@@ -134,10 +147,11 @@ def erstelle_rechnung_pdf(params):
     c.drawRightString(right, info_y, f"Rechnungsnr.: {rg_nr}")
     c.drawRightString(right, info_y - 4.5 * mm, f"Datum: {datum}")
 
-    # Titel
+    # Titel — 14pt Helvetica normal (nicht fett): dezenter als 18pt Bold, wirkt
+    # ruhiger im Verhaeltnis zum Fliesstext.
     y -= 24 * mm
-    c.setFont("Helvetica-Bold", 18)
-    c.setFillColor(BLUE)
+    c.setFont("Helvetica", 13)
+    c.setFillColor(TEAL_HEAD)
     c.drawString(left, y, titel)
 
     # Einleitungstext
@@ -148,15 +162,27 @@ def erstelle_rechnung_pdf(params):
         c.drawString(left, y, line)
         y -= 4 * mm
 
-    # Positionstabelle
-    y -= 14 * mm
-    c.setFillColor(BLUE)
-    c.rect(left, y - 1 * mm, content_width, 6 * mm, fill=True, stroke=False)
-    c.setFillColor(WHITE)
+    # Positionstabelle \u2014 dezente Haarlinien statt gefuellter Balken
+    y -= 10 * mm
+    header_y = y + 0.5 * mm
+    c.setStrokeColor(TEAL_HEAD)
+    c.setLineWidth(0.6)
+    c.line(left, y + 5 * mm, right, y + 5 * mm)  # obere Haarlinie
+    c.line(left, y - 1 * mm, right, y - 1 * mm)  # untere Haarlinie
+    c.setFillColor(TEAL_HEAD)
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(left + 2 * mm, y + 0.5 * mm, "Bezeichnung")
-    c.drawString(right - 60 * mm, y + 0.5 * mm, "Einheit")
-    c.drawRightString(right - 2 * mm, y + 0.5 * mm, "Gesamt \u20ac")
+    c.drawString(left + 2 * mm, header_y, "Bezeichnung")
+    c.drawString(right - 60 * mm, header_y, "Einheit")
+    c.drawRightString(right - 2 * mm, header_y, "Gesamt \u20ac")
+
+    # Netto-Wert und USt-Betrag vorausberechnen — wird gleich mehrfach gebraucht.
+    netto = betrag_brutto / (1 + mwst_satz / 100)
+    mwst_betrag = betrag_brutto - netto
+    # Firmen-Modus (abweichende Adresse gesetzt = Rechnung geht an Traeger/Firma):
+    # In der Positionstabelle steht NETTO. Am Ende folgen Zwischensumme/USt/Gesamt
+    # aufgeschluesselt. Selbstzahler-Modus: BRUTTO in Position, USt als Fussnote.
+    firmen_modus = bool(abweichende_rechnungsadresse)
+    positions_betrag = netto if firmen_modus else betrag_brutto
 
     # Tabellenzeile
     y -= 7 * mm
@@ -168,7 +194,7 @@ def erstelle_rechnung_pdf(params):
         c.drawString(left + 2 * mm, bez_y, line)
         bez_y -= 4 * mm
     c.drawString(right - 60 * mm, y, einheit)
-    c.drawRightString(right - 2 * mm, y, format_betrag(betrag_brutto))
+    c.drawRightString(right - 2 * mm, y, format_betrag(positions_betrag))
     y = bez_y - 2 * mm
 
     # Beschreibung
@@ -184,22 +210,13 @@ def erstelle_rechnung_pdf(params):
         y -= 2 * mm
         c.setFont("Helvetica", 8)
         c.setFillColor(DARK)
-        # Defensive: Fallbacks, falls einzelne Felder fehlen (z.B. bei Folgeraten)
-        _erste = raten_info.get('erste_rate')
-        _folge = raten_info.get('folge_rate')
-        _gesamt = raten_info.get('gesamt')
-        # Wenn folge_rate fehlt, erste_rate als Fallback (bei gleichmaessigen Raten)
-        if _folge is None:
-            _folge = _erste
-        if _erste is None:
-            _erste = _folge
         raten_text = (
             f"Zahlungsplan in {raten_info['anzahl']} Raten:\n"
-            f"Gesamtbetrag: {format_betrag(float(_gesamt))} \u20ac. "
-            f"Die 1. Rate ({format_betrag(float(_erste))} \u20ac) ist innerhalb von "
+            f"Gesamtbetrag: {format_betrag(float(raten_info['gesamt']))} \u20ac. "
+            f"Die 1. Rate ({format_betrag(float(raten_info['erste_rate']))} \u20ac) ist innerhalb von "
             f"{faellig_tage} Tagen f\u00e4llig, "
             f"die restlichen {raten_info['anzahl'] - 1} Raten "
-            f"({format_betrag(float(_folge))} \u20ac) "
+            f"({format_betrag(float(raten_info['folge_rate']))} \u20ac) "
             f"erfolgen im monatlichem Abstand."
         )
         for part in raten_text.split('\n'):
@@ -213,71 +230,84 @@ def erstelle_rechnung_pdf(params):
     c.setLineWidth(0.5)
     c.line(left, y, right, y)
 
-    # Gesamtbetrag
-    y -= 8 * mm
-    netto = betrag_brutto / (1 + mwst_satz / 100)
-    mwst_betrag = betrag_brutto - netto
-    c.setFont("Helvetica-Bold", 10)
-    c.setFillColor(DARK)
-    c.drawString(left + 2 * mm, y, "Gesamtbetrag*")
-    c.drawRightString(right - 2 * mm, y, format_betrag(betrag_brutto))
-
-    y -= 6 * mm
-    c.setFont("Helvetica", 7.5)
-    c.setFillColor(GREY)
-    c.drawString(left + 2 * mm, y,
-        f"* Im Gesamtbetrag von {format_betrag(betrag_brutto)} \u20ac "
-        f"(Netto: {format_betrag(netto)} \u20ac) sind USt {mwst_satz} % "
-        f"({format_betrag(mwst_betrag)} \u20ac) enthalten.")
-
-    # Faelligkeit \u2014 nur wenn nicht bereits bezahlt
-    if not bereits_bezahlt:
-        y -= 12 * mm
+    if firmen_modus:
+        # Firmen-Modus: Zwischensumme (netto), USt, Gesamtbetrag aufgeschluesselt
+        y -= 8 * mm
         c.setFont("Helvetica", 9)
         c.setFillColor(DARK)
-        c.drawString(left + 2 * mm, y, f"F\u00e4llig innerhalb von {faellig_tage} Tagen ab Rechnungsdatum.")
+        c.drawString(left + 2 * mm, y, "Zwischensumme (netto)")
+        c.drawRightString(right - 2 * mm, y, format_betrag(netto))
+        y -= 5 * mm
+        c.drawString(left + 2 * mm, y, f"Umsatzsteuer {mwst_satz} %")
+        c.drawRightString(right - 2 * mm, y, format_betrag(mwst_betrag))
+        y -= 5 * mm
+        c.setStrokeColor(LIGHT_GREY)
+        c.setLineWidth(0.5)
+        c.line(left, y, right, y)
+        y -= 6 * mm
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(left + 2 * mm, y, "Gesamtbetrag")
+        c.drawRightString(right - 2 * mm, y, format_betrag(betrag_brutto))
+    else:
+        # Selbstzahler-Modus: Gesamtbetrag (brutto) prominent + kleine USt-Fussnote
+        y -= 8 * mm
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(DARK)
+        c.drawString(left + 2 * mm, y, "Gesamtbetrag*")
+        c.drawRightString(right - 2 * mm, y, format_betrag(betrag_brutto))
 
-    # Dankestext
-    y -= 12 * mm
+        y -= 6 * mm
+        c.setFont("Helvetica", 7.5)
+        c.setFillColor(GREY)
+        c.drawString(left + 2 * mm, y,
+            f"* Im Gesamtbetrag von {format_betrag(betrag_brutto)} \u20ac "
+            f"(Netto: {format_betrag(netto)} \u20ac) sind USt {mwst_satz} % "
+            f"({format_betrag(mwst_betrag)} \u20ac) enthalten.")
+
+    # Faelligkeit \u2014 linksbuendig wie der Einleitungstext (nicht in der Positions-
+    # tabellen-Einrueckung, denn die ist weiter oben zu Ende).
+    y -= 10 * mm
     c.setFont("Helvetica", 9)
     c.setFillColor(DARK)
-    c.drawString(left + 2 * mm, y, danke_text)
+    c.drawString(left, y, f"F\u00e4llig innerhalb von {faellig_tage} Tagen ab Rechnungsdatum.")
 
-    # QR-Codes nur drucken, wenn nicht bereits bezahlt \u2014 ansonsten waere die
-    # Aufforderung zur Zahlung verwirrend.
-    if not bereits_bezahlt:
-        # QR-Codes (ans untere Seitenende pinnen, oberhalb des Footers)
-        qr_size = 28 * mm
-        # Footer-Linie liegt bei 27mm, QR-Captions brauchen 8mm Platz darunter,
-        # QR-Codes sind 28mm hoch, Labels ueber den QRs brauchen 4mm
-        # -> QR-Label-y = 27mm + 8mm + 28mm + 4mm = 67mm
-        y = 67 * mm
+    # Dankestext \u2014 direkt unter der Faelligkeit, kompakter Abstand
+    y -= 6 * mm
+    c.setFont("Helvetica", 9)
+    c.drawString(left, y, danke_text)
 
-        paypal_qr = generate_paypal_qr(betrag_brutto)
-        c.setFont("Helvetica-Bold", 8)
-        c.setFillColor(BLUE)
-        c.drawString(left, y + 2 * mm, "Bezahlen per PayPal")
-        c.drawImage(paypal_qr, left, y - qr_size, width=qr_size, height=qr_size)
-        c.setFont("Helvetica", 7)
-        c.setFillColor(GREY)
-        c.drawString(left, y - qr_size - 4 * mm, "Ganz bequem Code scannen")
-        c.drawString(left, y - qr_size - 8 * mm, "oder Link verwenden.")
+    # QR-Codes (ans untere Seitenende pinnen, oberhalb des Footers)
+    qr_size = 28 * mm
+    # Footer-Linie liegt bei 27mm, QR-Captions brauchen 8mm Platz darunter,
+    # QR-Codes sind 28mm hoch, Labels ueber den QRs brauchen 4mm
+    # -> QR-Label-y = 27mm + 8mm + 28mm + 4mm = 67mm
+    y = 67 * mm
 
-        giro_qr = generate_girocode(betrag_brutto, rg_nr)
-        giro_x = left + 85 * mm
-        c.setFont("Helvetica-Bold", 8)
-        c.setFillColor(BLUE)
-        c.drawString(giro_x, y + 2 * mm, "\u00dcberweisen per Code")
-        c.drawImage(giro_qr, giro_x, y - qr_size, width=qr_size, height=qr_size)
-        c.setFont("Helvetica", 7)
-        c.setFillColor(GREY)
-        c.drawString(giro_x, y - qr_size - 4 * mm, "Ganz bequem Code mit der")
-        c.drawString(giro_x, y - qr_size - 8 * mm, "Banking-App scannen.")
+    paypal_qr = generate_paypal_qr(betrag_brutto)
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColor(TEAL_ACCENT)
+    c.drawString(left, y + 2 * mm, "Bezahlen per PayPal")
+    c.drawImage(paypal_qr, left, y - qr_size, width=qr_size, height=qr_size)
+    c.setFont("Helvetica", 7)
+    c.setFillColor(GREY)
+    c.drawString(left, y - qr_size - 4 * mm, "Ganz bequem Code scannen")
+    c.drawString(left, y - qr_size - 8 * mm, "oder Link verwenden.")
+
+    giro_qr = generate_girocode(betrag_brutto, rg_nr)
+    giro_x = left + 85 * mm
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColor(TEAL_ACCENT)
+    c.drawString(giro_x, y + 2 * mm, "\u00dcberweisen per Code")
+    c.drawImage(giro_qr, giro_x, y - qr_size, width=qr_size, height=qr_size)
+    c.setFont("Helvetica", 7)
+    c.setFillColor(GREY)
+    c.drawString(giro_x, y - qr_size - 4 * mm, "Ganz bequem Code mit der")
+    c.drawString(giro_x, y - qr_size - 8 * mm, "Banking-App scannen.")
 
     # Footer
     footer_y = 22 * mm
-    c.setStrokeColor(BLUE)
-    c.setLineWidth(0.8)
+    c.setStrokeColor(TEAL_HEAD)
+    c.setLineWidth(0.6)
     c.line(left, footer_y + 5 * mm, right, footer_y + 5 * mm)
     c.setFont("Helvetica", 6.5)
     c.setFillColor(GREY)
