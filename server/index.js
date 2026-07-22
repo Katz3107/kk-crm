@@ -153,19 +153,8 @@ app.post('/api/sync/todo', async (req, res) => {
     if (rgRes.rows.length > 0) {
       const r = rgRes.rows[0];
 
-      // Status auf "done" gesetzt? Nur ok, wenn Rechnung wirklich versendet ist
-      if (after.status === 'done' && (before?.status !== 'done')) {
-        const versendet = r.webhook_gesendet_am || r.manuell_versendet_am || r.erhalten_am;
-        if (!versendet) {
-          // Auto-Revert: kk-todo wieder auf open setzen mit Hinweis
-          await kkTodoUpdate(after.id, {
-            status: 'open',
-            description: (after.description || '')
-              + '\n\n⚠️ Auto-Revert: Diese Rechnung wurde im CRM noch nicht versendet. Bitte erst im CRM auf "Senden" klicken.',
-          });
-          return res.json({ ok: true, action: 'reverted-rechnung-nicht-versendet' });
-        }
-      }
+      // Status auf "done" gesetzt - kein Auto-Revert mehr: Verschieben der Rechnung
+      // gilt als gueltige Erledigung der Aufgabe, auch wenn noch nicht versendet.
 
       // Datum verschoben? gestellt_am im CRM updaten und faellig_am proportional
       if (after.scheduledDate && after.scheduledDate !== before?.scheduledDate) {
