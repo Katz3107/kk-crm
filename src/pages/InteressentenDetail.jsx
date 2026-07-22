@@ -580,8 +580,11 @@ function TabFollowUp({ kontakt, kontaktId }) {
   const [sendFehler, setSendFehler] = useState(null);
   const [gesendet, setGesendet] = useState(false);
 
+  // Nur echte Erstgespraech-Eintraege beruecksichtigen (beide Schreibweisen in
+  // der Praxis: "Erstgespraech" und "Erstgespräch"), keine Follow-up/Notiz/
+  // E-Mail-Eintraege, auch wenn die neuer sind und protokoll_eigen gefuellt haben.
   const egZusammenfassung = (kontakt.gespraeche || [])
-    .filter((g) => g.protokoll_eigen)
+    .filter((g) => g.protokoll_eigen && (g.typ || '').toLowerCase().includes('erstgespr'))
     .sort((a, b) => new Date(b.datum) - new Date(a.datum))[0]?.protokoll_eigen || '';
 
   useEffect(() => {
