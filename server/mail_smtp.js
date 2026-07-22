@@ -33,10 +33,16 @@ function textToHtmlParagraphs(text) {
 }
 
 function buildHtml(text) {
-  return `<div style="max-width: 600px; font-family: Aptos, Calibri, Arial, sans-serif; font-size: 11pt; color: #404040; line-height: 1.5;">
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0; padding:0;">
+<div style="max-width: 600px; font-family: Aptos, Calibri, Arial, sans-serif; font-size: 11pt; color: #404040; line-height: 1.5;">
 ${textToHtmlParagraphs(text)}
 ${SIGNATUR_HTML}
-</div>`;
+</div>
+</body>
+</html>`;
 }
 
 function makeTransport() {
