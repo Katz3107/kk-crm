@@ -1,8 +1,13 @@
 import nodemailer from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer/index.js';
+import { ImapFlow } from 'imapflow';
 
 const SMTP_HOST = 'smtp.strato.de';
 const SMTP_PORT = 587;
+const IMAP_HOST = 'imap.strato.de';
+const IMAP_PORT = 993;
 const SMTP_USER = 'kontakt@katzenmayer-coaching.com';
+const SENT_FOLDER = 'Gesendete Elemente';
 
 // Signatur bewusst kleiner als der Fliesstext (9pt), wie von Kirsten fuer
 // den Abbinder angegeben - gilt nur fuer die Signatur, nicht die ganze Mail.
@@ -46,9 +51,6 @@ ${SIGNATUR_HTML}
 }
 
 function makeTransport() {
-  if (!process.env.KONTAKT_MAIL_PASSWORD) {
-    throw new Error('KONTAKT_MAIL_PASSWORD env-var ist nicht gesetzt');
-  }
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
@@ -58,13 +60,55 @@ function makeTransport() {
   });
 }
 
+function buildRawMessage(mailOptions) {
+  return new Promise((resolve, reject) => {
+    new MailComposer(mailOptions).compile().build((err, message) => {
+      if (err) reject(err); else resolve(message);
+    });
+  });
+}
+
+// Legt eine Kopie der gesendeten Mail im IMAP-Ordner "Gesendete Elemente" ab.
+// Reiner SMTP-Versand speichert bei Strato keine Kopie automatisch, dadurch
+// tauchte die Mail bisher nicht in Outlook auf. Fehler hier sind nicht fatal -
+// der eigentliche Versand ist zu dem Zeitpunkt schon erfolgreich durch.
+async function appendToSentFolder(raw) {
+  const client = new ImapFlow({
+    host: IMAP_HOST,
+    port: IMAP_PORT,
+    secure: true,
+    auth: { user: SMTP_USER, pass: process.env.KONTAKT_MAIL_PASSWORD },
+    logger: false,
+  });
+  try {
+    await client.connect();
+    await client.append(SENT_FOLDER, raw, ['\\Seen']);
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
 export async function sendMail({ to, subject, text }) {
-  const transport = makeTransport();
-  await transport.sendMail({
+  if (!process.env.KONTAKT_MAIL_PASSWORD) {
+    throw new Error('KONTAKT_MAIL_PASSWORD env-var ist nicht gesetzt');
+  }
+
+  const mailOptions = {
     from: `Kirsten Katzenmayer <${SMTP_USER}>`,
     to,
     subject,
     text,
     html: buildHtml(text),
-  });
+  };
+
+  const raw = await buildRawMessage(mailOptions);
+
+  const transport = makeTransport();
+  await transport.sendMail({ raw, envelope: { from: SMTP_USER, to } });
+
+  try {
+    await appendToSentFolder(raw);
+  } catch (err) {
+    console.warn('Kopie in "Gesendete Elemente" fehlgeschlagen (Versand war trotzdem erfolgreich):', err.message);
+  }
 }
