@@ -67,7 +67,7 @@ export async function generateFollowupDraft(params) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildUserPrompt(params) }],
     }),
@@ -135,7 +135,7 @@ export async function generateFollowupAdvice(params) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: SYSTEM_PROMPT_ADVICE,
       messages: [{ role: 'user', content: buildAdvicePrompt(params) }],
     }),
