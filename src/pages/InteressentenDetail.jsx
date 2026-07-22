@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, RotateCcw, ChevronDown, ChevronUp, ExternalLink, Video, Plus, Calendar, Trash2 } from 'lucide-react';
-import { getInteressent, createInteressent, deleteInteressent, updateInteressent, createInteressentenGespraech, updateInteressentenGespraech, deleteInteressentenGespraech, getInteressentMails, generateFollowupEntwurf, sendFollowupMail } from '../lib/api.js';
+import { getInteressent, createInteressent, deleteInteressent, updateInteressent, createInteressentenGespraech, updateInteressentenGespraech, deleteInteressentenGespraech, getInteressentMails, generateFollowupEntwurf, sendFollowupMail, fragFollowupMeinung } from '../lib/api.js';
 import { formatDate, formatDateTime } from '../lib/format.js';
 import DraggableGespraechModal from '../components/DraggableGespraechModal.jsx';
 
@@ -579,6 +579,10 @@ function TabFollowUp({ kontakt, kontaktId }) {
   const [sending, setSending] = useState(false);
   const [sendFehler, setSendFehler] = useState(null);
   const [gesendet, setGesendet] = useState(false);
+  const [frage, setFrage] = useState('');
+  const [meinung, setMeinung] = useState('');
+  const [askingMeinung, setAskingMeinung] = useState(false);
+  const [meinungFehler, setMeinungFehler] = useState(null);
 
   // Nur echte Erstgespraech-Eintraege beruecksichtigen (beide Schreibweisen in
   // der Praxis: "Erstgespraech" und "Erstgespräch"), keine Follow-up/Notiz/
@@ -614,6 +618,20 @@ function TabFollowUp({ kontakt, kontaktId }) {
       setEntwurfFehler(err.message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleAskMeinung = async () => {
+    if (!frage.trim()) return;
+    setAskingMeinung(true);
+    setMeinungFehler(null);
+    try {
+      const result = await fragFollowupMeinung(kontaktId, frage);
+      setMeinung(result.antwort || '');
+    } catch (err) {
+      setMeinungFehler(err.message);
+    } finally {
+      setAskingMeinung(false);
     }
   };
 
@@ -678,6 +696,35 @@ function TabFollowUp({ kontakt, kontaktId }) {
             </div>
           </div>
         )}
+
+        {/* Um Einschaetzung fragen - separat vom Mail-Entwurf, fuer offene Fragen
+            wie "sollte ich nochmal schreiben?" statt fertiger Mail-Stichworte */}
+        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+          <Field label="Claude um Einschätzung fragen (statt Mail-Entwurf)">
+            <textarea
+              value={frage}
+              onChange={(e) => setFrage(e.target.value)}
+              rows={2}
+              placeholder="z.B. Sie antwortet nicht mehr, soll ich nochmal schreiben?"
+              className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-primary/40"
+            />
+          </Field>
+          <button
+            onClick={handleAskMeinung}
+            disabled={askingMeinung || !frage.trim()}
+            className="px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {askingMeinung ? 'Frage läuft...' : 'Einschätzung einholen'}
+          </button>
+          {meinungFehler && (
+            <div className="p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{meinungFehler}</div>
+          )}
+          {meinung && (
+            <div className="p-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
+              {meinung}
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Anrede">

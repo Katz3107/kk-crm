@@ -90,3 +90,63 @@ export async function generateFollowupDraft(params) {
     return { betreff: '', text: raw };
   }
 }
+
+// Separater Modus: Kirsten fragt um eine Einschaetzung/Meinung statt einen
+// Mail-Entwurf zu wollen (z.B. "sollte ich ihr nochmal schreiben?"). Interner
+// Text an Kirsten selbst, kein Kunden-Text - deshalb keine Ton-/Floskelregeln,
+// einfach eine ehrliche, direkte Antwort in Fliesstext.
+const SYSTEM_PROMPT_ADVICE = `Du bist eine erfahrene, ehrliche Sparringpartnerin fuer Kirsten Katzenmayer (Karriere-Coaching). Sie fragt dich um deine Einschaetzung zu einer Interessentin, basierend auf dem bisherigen Verlauf.
+
+Antworte in normalem Fliesstext (kein JSON, kein Mail-Entwurf), kurz und konkret. Eine klare Einschaetzung mit kurzer Begruendung, keine ausschweifende Analyse. Das ist ein interner Text an Kirsten selbst, keine Kunden-Kommunikation - schreib also frei, ohne Floskel-Vorgaben.`;
+
+function buildAdvicePrompt({ vorname, frage, egZusammenfassung, bisherigeMails }) {
+  const mailVerlauf = (bisherigeMails || []).length
+    ? bisherigeMails
+        .map((m) => `[${m.richtung === 'eingehend' ? 'von ihr' : 'von Kirsten'}, ${m.datum}] ${m.betreff}: ${(m.inhalt || '').slice(0, 500)}`)
+        .join('\n\n')
+    : '(noch keine bisherige Mail-Korrespondenz)';
+
+  return `Interessentin: ${vorname}
+
+Zusammenfassung aus dem Erstgespraech:
+${egZusammenfassung || '(keine Zusammenfassung vorhanden)'}
+
+Bisherige Mail-Korrespondenz:
+${mailVerlauf}
+
+Kirstens Frage:
+${frage}`;
+}
+
+export async function generateFollowupAdvice(params) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    const err = new Error('ANTHROPIC_API_KEY env-var ist nicht gesetzt');
+    err.code = 'NO_API_KEY';
+    throw err;
+  }
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT_ADVICE,
+      messages: [{ role: 'user', content: buildAdvicePrompt(params) }],
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Claude API Fehler ${res.status}: ${body}`);
+  }
+
+  const data = await res.json();
+  const textBlock = data.content?.find((block) => block.type === 'text');
+  return textBlock?.text || '';
+}

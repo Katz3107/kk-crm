@@ -12,7 +12,7 @@ import { execFile } from 'child_process';
 import { mkdirSync, existsSync, unlinkSync, readFileSync, readdirSync } from 'fs';
 import pg from 'pg';
 import { fetchMailsForAddress } from './mail_imap.js';
-import { generateFollowupDraft } from './followup_draft.js';
+import { generateFollowupDraft, generateFollowupAdvice } from './followup_draft.js';
 import { sendMail } from './mail_smtp.js';
 
 // TIMESTAMP WITHOUT TIME ZONE (OID 1114) als rohen String zurueckgeben.
@@ -1725,8 +1725,11 @@ app.post('/api/interessenten/:id/followup-entwurf', async (req, res) => {
     if (kontaktRes.rows.length === 0) return res.status(404).json({ error: 'Interessent nicht gefunden' });
     const kontakt = kontaktRes.rows[0];
 
+    // Nur echte Erstgespraech-Eintraege (beide Schreibweisen in der Praxis:
+    // "Erstgespraech" und "Erstgespräch"), keine Follow-up/Notiz/E-Mail-
+    // Eintraege, auch wenn die neuer sind und protokoll_eigen gefuellt haben.
     const gespraechRes = await pool.query(
-      'SELECT protokoll_eigen FROM interessenten_gespraeche WHERE kontakt_id = $1 ORDER BY datum DESC LIMIT 1',
+      "SELECT protokoll_eigen FROM interessenten_gespraeche WHERE kontakt_id = $1 AND typ ILIKE '%erstgespr%' ORDER BY datum DESC LIMIT 1",
       [req.params.id]
     );
     const egZusammenfassung = gespraechRes.rows[0]?.protokoll_eigen || '';
@@ -1745,6 +1748,44 @@ app.post('/api/interessenten/:id/followup-entwurf', async (req, res) => {
     res.json(entwurf);
   } catch (err) {
     console.error('POST /api/interessenten/:id/followup-entwurf error:', err);
+    if (err.code === 'NO_API_KEY') {
+      return res.status(503).json({ error: 'ANTHROPIC_API_KEY ist auf dem Server nicht konfiguriert.' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/interessenten/:id/meinung - Kirsten fragt Claude um eine
+// Einschaetzung statt einen Mail-Entwurf zu wollen (z.B. "nochmal anschreiben?").
+app.post('/api/interessenten/:id/meinung', async (req, res) => {
+  try {
+    const { frage } = req.body;
+    if (!frage || !frage.trim()) {
+      return res.status(400).json({ error: 'Frage darf nicht leer sein' });
+    }
+
+    const kontaktRes = await pool.query('SELECT * FROM kontakte WHERE id = $1', [req.params.id]);
+    if (kontaktRes.rows.length === 0) return res.status(404).json({ error: 'Interessent nicht gefunden' });
+    const kontakt = kontaktRes.rows[0];
+
+    const gespraechRes = await pool.query(
+      "SELECT protokoll_eigen FROM interessenten_gespraeche WHERE kontakt_id = $1 AND typ ILIKE '%erstgespr%' ORDER BY datum DESC LIMIT 1",
+      [req.params.id]
+    );
+    const egZusammenfassung = gespraechRes.rows[0]?.protokoll_eigen || '';
+
+    const mailsRes = await pool.query('SELECT * FROM mails WHERE kontakt_id = $1 ORDER BY datum DESC LIMIT 6', [req.params.id]);
+
+    const antwort = await generateFollowupAdvice({
+      vorname: kontakt.vorname || kontakt.name,
+      frage,
+      egZusammenfassung,
+      bisherigeMails: mailsRes.rows.reverse(),
+    });
+
+    res.json({ antwort });
+  } catch (err) {
+    console.error('POST /api/interessenten/:id/meinung error:', err);
     if (err.code === 'NO_API_KEY') {
       return res.status(503).json({ error: 'ANTHROPIC_API_KEY ist auf dem Server nicht konfiguriert.' });
     }

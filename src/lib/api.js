@@ -145,6 +145,8 @@ export const generateFollowupEntwurf = (kontaktId, data) =>
   request(`/interessenten/${kontaktId}/followup-entwurf`, { method: 'POST', body: JSON.stringify(data) });
 export const sendFollowupMail = (kontaktId, data) =>
   request(`/interessenten/${kontaktId}/followup-senden`, { method: 'POST', body: JSON.stringify(data) });
+export const fragFollowupMeinung = (kontaktId, frage) =>
+  request(`/interessenten/${kontaktId}/meinung`, { method: 'POST', body: JSON.stringify({ frage }) });
 
 // Zahlungsabgleich
 export const getZahlungsabgleichVorschau = () => request(`/zahlungsabgleich/vorschau`);
