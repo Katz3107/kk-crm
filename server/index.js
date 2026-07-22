@@ -1694,7 +1694,7 @@ app.get('/api/interessenten/:id/mails', async (req, res) => {
       }
     }
 
-    const mailsRes = await pool.query('SELECT * FROM mails WHERE kontakt_id = $1 ORDER BY datum ASC', [req.params.id]);
+    const mailsRes = await pool.query('SELECT * FROM mails WHERE kontakt_id = $1 ORDER BY datum DESC', [req.params.id]);
     res.json({ mails: mailsRes.rows, syncFehler });
   } catch (err) {
     console.error('GET /api/interessenten/:id/mails error:', err);

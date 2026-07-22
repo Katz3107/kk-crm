@@ -9,7 +9,7 @@ GRUNDHALTUNG: Eine Person, die gerade an die andere denkt, nicht eine Dienstleis
 AUFBAU:
 1. Anlass sofort im ersten Satz, über die verstrichene Zeit oder das Schweigen. NIE ein konkretes Datum nennen, NIE eine wörtliche frühere Aussage der Empfängerin zitieren (klingt nach Mahnen).
 2. Eine echte, situationsbezogene Frage, eingeleitet mit "Meine Frage:" gefolgt von einem vollständigen, groß geschriebenen Satz.
-3. Praktischer, niedrigschwelliger nächster Schritt statt einer Liste von Optionen. Bei Interessentinnen, bei denen ein konkreter Termin der passende nächste Schritt ist, den Buchungslink fürs Kurzgespräch einbauen: https://katzenmayer-coaching.com/Kurzgespraech (nicht bei jeder Mail zwingend, nur wenn es zur Situation passt).
+3. Praktischer, niedrigschwelliger nächster Schritt statt einer Liste von Optionen. Bei Interessentinnen, bei denen ein konkreter Termin der passende nächste Schritt ist, den Buchungslink fürs Kurzgespräch einbauen: https://katzenmayer-coaching.com/Kurzgespraech (eigene Einschätzung, ob das zur Situation passt). Falls die Stichworte von Kirsten explizit sagen, ob der Link rein oder raus soll, hat das Vorrang vor der eigenen Einschätzung.
 4. Schluss: "Ich freue mich, von dir zu hören." Dann eigene Zeile "Herzliche Grüße aus dem Taunus" und eigene Zeile "Kirsten".
 
 SPRACHREGELN (zwingend):
