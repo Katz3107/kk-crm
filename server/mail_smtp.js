@@ -4,8 +4,10 @@ const SMTP_HOST = 'smtp.strato.de';
 const SMTP_PORT = 587;
 const SMTP_USER = 'kontakt@katzenmayer-coaching.com';
 
+// Signatur bewusst kleiner als der Fliesstext (9pt), wie von Kirsten fuer
+// den Abbinder angegeben - gilt nur fuer die Signatur, nicht die ganze Mail.
 const SIGNATUR_HTML = `
-<p style="margin: 8px 0 0 0;">Birkenweg 4<br>
+<p style="margin: 8px 0 0 0; font-size: 9pt;">Birkenweg 4<br>
 61273 Wehrheim<br>
 +49 6081 586770<br>
 +49 171 3596354<br>
@@ -22,7 +24,7 @@ function textToHtmlParagraphs(text) {
 }
 
 function buildHtml(text) {
-  return `<div style="max-width: 600px; font-family: Aptos, Calibri, Arial, sans-serif; font-size: 9pt; color: #404040; line-height: 1.5;">
+  return `<div style="max-width: 600px; font-family: Aptos, Calibri, Arial, sans-serif; font-size: 11pt; color: #404040; line-height: 1.5;">
 ${textToHtmlParagraphs(text)}
 ${SIGNATUR_HTML}
 </div>`;
