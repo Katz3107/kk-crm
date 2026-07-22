@@ -611,7 +611,7 @@ function TabFollowUp({ kontakt, kontaktId }) {
     setGesendet(false);
     setSendFehler(null);
     try {
-      const result = await generateFollowupEntwurf(kontaktId, { anrede, datumEG, stichworte });
+      const result = await generateFollowupEntwurf(kontaktId, { anrede, datumEG, stichworte, vorherigeEinschaetzung: meinung || undefined });
       setEntwurf(result);
     } catch (err) {
       setEntwurfFehler(err.message);

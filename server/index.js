@@ -1716,7 +1716,7 @@ app.get('/api/interessenten/:id/mails', async (req, res) => {
 // editierbaren Follow-up-Mail-Entwurf aus Stichworten + Kontext.
 app.post('/api/interessenten/:id/followup-entwurf', async (req, res) => {
   try {
-    const { anrede, datumEG, stichworte } = req.body;
+    const { anrede, datumEG, stichworte, vorherigeEinschaetzung } = req.body;
     if (!stichworte || !stichworte.trim()) {
       return res.status(400).json({ error: 'Stichworte duerfen nicht leer sein' });
     }
@@ -1743,6 +1743,7 @@ app.post('/api/interessenten/:id/followup-entwurf', async (req, res) => {
       stichworte,
       egZusammenfassung,
       bisherigeMails: mailsRes.rows.reverse(),
+      vorherigeEinschaetzung,
     });
 
     res.json(entwurf);

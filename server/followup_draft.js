@@ -27,12 +27,16 @@ Statt einer weichen Aufforderung immer direkt: "Antworte mir einfach auf diese M
 
 Antworte NUR mit einem JSON-Objekt der Form {"betreff": "...", "text": "..."}, ohne Markdown-Codeblock drumherum.`;
 
-function buildUserPrompt({ vorname, anrede, datumEG, stichworte, egZusammenfassung, bisherigeMails }) {
+function buildUserPrompt({ vorname, anrede, datumEG, stichworte, egZusammenfassung, bisherigeMails, vorherigeEinschaetzung }) {
   const mailVerlauf = (bisherigeMails || []).length
     ? bisherigeMails
         .map((m) => `[${m.richtung === 'eingehend' ? 'von ihr' : 'von Kirsten'}, ${m.datum}] ${m.betreff}: ${(m.inhalt || '').slice(0, 500)}`)
         .join('\n\n')
     : '(noch keine bisherige Mail-Korrespondenz)';
+
+  const einschaetzungsBlock = vorherigeEinschaetzung
+    ? `\nDeine eigene vorige Einschaetzung dazu (beruecksichtige das beim Schreiben, sofern relevant):\n${vorherigeEinschaetzung}\n`
+    : '';
 
   return `Interessentin: ${vorname}
 Anrede: ${anrede}
@@ -43,7 +47,7 @@ ${egZusammenfassung || '(keine Zusammenfassung vorhanden)'}
 
 Bisherige Mail-Korrespondenz:
 ${mailVerlauf}
-
+${einschaetzungsBlock}
 Stichworte von Kirsten fuer diese Follow-up-Mail:
 ${stichworte}
 
