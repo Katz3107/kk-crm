@@ -658,7 +658,7 @@ function TabFollowUp({ kontakt, kontaktId }) {
                   <span>{formatDateTime(m.datum)}</span>
                 </div>
                 <div className="font-medium text-gray-700 mb-1">{m.betreff}</div>
-                <div className="text-gray-600 whitespace-pre-wrap">{(m.inhalt || '').slice(0, 400)}</div>
+                <div className="text-gray-600 whitespace-pre-wrap">{m.inhalt || ''}</div>
               </div>
             ))}
           </div>

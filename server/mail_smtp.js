@@ -14,12 +14,21 @@ const SIGNATUR_HTML = `
 <a href="https://katzenmayer-coaching.com/" style="color:#0A5F6A; text-decoration:none;">katzenmayer-coaching.com</a><br>
 <a href="https://katzenmayer-coaching.com/impressum/" style="color:#0A5F6A; text-decoration:none;">Impressum</a></p>`;
 
+// Verwandelt rohe URLs im Text (z.B. den Kurzgespraech-Buchungslink) in
+// klickbare Links, in derselben Linkfarbe wie im Abbinder.
+function linkifyUrls(text) {
+  return text.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    (url) => `<a href="${url}" style="color:#0A5F6A; text-decoration:none;">${url}</a>`
+  );
+}
+
 // Wandelt einfachen Text (mit Leerzeilen als Absatztrenner) in HTML-Absaetze um.
 // Enger Absatzabstand statt Browser-Standard (der wirkt sonst zu weit auseinandergezogen).
 function textToHtmlParagraphs(text) {
   return text
     .split(/\n\s*\n/)
-    .map((absatz) => `<p style="margin: 0 0 8px 0;">${absatz.replace(/\n/g, '<br>')}</p>`)
+    .map((absatz) => `<p style="margin: 0 0 8px 0;">${linkifyUrls(absatz).replace(/\n/g, '<br>')}</p>`)
     .join('\n');
 }
 
